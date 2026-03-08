@@ -6,10 +6,10 @@ import numpy as np
 # Configuration de la page
 st.set_page_config(page_title="ScoreCredit Pro", layout="wide")
 
-st.title("🚀 ScoreCredit : Cockpit de Décision Financière")
+st.title("ScoreCredit : Outil d'analyse de risque credit")
 
 # 1. Barre latérale : Paramètres de Pondération du modèle
-st.sidebar.header("⚙️ Paramètres de Scoring")
+st.sidebar.header("Paramètres de Scoring")
 poids_endettement = st.sidebar.slider("Poids du Risque (Endettement)", 0.0, 1.0, 0.6)
 poids_fidelite = st.sidebar.slider("Poids de la Fidélité", 0.0, 1.0, 0.4)
 
