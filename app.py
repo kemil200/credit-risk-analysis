@@ -35,7 +35,7 @@ else:
     st.error(f"⛔ Dossier REJETÉ — Probabilité de défaut : **{prob:.1%}**")
 
 # ── Graphique : courbe décroissante du risque selon le revenu ─────────────────
-revenus   = np.linspace(50_000, 300_000_000, 200)
+revenus   = np.linspace(150_000, 3_000_000, 200)
 risques   = [probabilite_defaut(montant, r, anciennete, duree) for r in revenus]
 
 fig = go.Figure()
