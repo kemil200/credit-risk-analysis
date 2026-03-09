@@ -7,7 +7,7 @@ from scipy.special import expit  # Fonction sigmoïde (logistique)
 
 # ─── Configuration de la page ────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ScoreCredit Pro — Decreasing Trend",
+    page_title="ScoreCredit",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -275,8 +275,11 @@ with col2:
         fig3 = go.Figure(go.Heatmap(
             z=Z, x=rev_grid / 1000, y=anc_grid,
             colorscale=[[0, "#0d2c17"], [0.5, "#2c1f0a"], [1, "#2d1215"]],
-            colorbar=dict(title="P(Défaut)", tickformat=".0%",
-                          tickfont=dict(color="#8b949e"), titlefont=dict(color="#8b949e")),
+            colorbar=dict(
+                title=dict(text="P(Défaut)", font=dict(color="#8b949e")),
+                tickformat=".0%",
+                tickfont=dict(color="#8b949e")
+            ),
             zmin=0, zmax=1
         ))
         fig3.update_layout(
