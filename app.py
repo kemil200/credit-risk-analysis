@@ -5,7 +5,7 @@ from scipy.special import expit
 
 st.set_page_config(page_title="ScoreCredit", layout="centered")
 st.title("ScoreCredit")
-st.caption("Analyse de risque crédit instantanée")
+st.caption("Analyse de risque crédit")
 st.divider()
 
 # ── Saisie ────────────────────────────────────────────────────────────────────
