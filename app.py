@@ -71,12 +71,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── En-tête ──────────────────────────────────────────────────────────────────
-st.title("ScoreCredit Pro")
+st.title("ScoreCredit")
 st.markdown("<p style='color:#8b949e; font-size:1.05rem; margin-top:-1rem;'>Outil d'analyse de risque crédit · <em>Decreasing Trend Model</em></p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # ─── Barre latérale ───────────────────────────────────────────────────────────
-st.sidebar.markdown("## ⚙️ Paramètres du Modèle")
+st.sidebar.markdown("## Paramètres du Modèle")
 st.sidebar.markdown("**Régression Logistique**")
 
 poids_endettement = st.sidebar.slider("λ Endettement", 0.0, 3.0, 1.5, 0.1,
@@ -87,7 +87,7 @@ seuil_risque = st.sidebar.slider("Seuil de rejet (probabilité)", 0.3, 0.8, 0.5,
     help="Probabilité de défaut au-delà de laquelle le dossier est rejeté")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📊 Données de Référence")
+st.sidebar.markdown("### Données de Référence")
 st.sidebar.markdown("**Revenu médian marché :** 450 000 CFA/mois")
 st.sidebar.markdown("**Taux de défaut portefeuille :** 12.4 %")
 
