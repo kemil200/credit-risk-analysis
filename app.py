@@ -7,8 +7,6 @@ st.title("ScoreCredit")
 st.caption("Modele d'analyse de risque de credit")
 st.divider()
 
-# Parametres du modele entraine (StandardScaler + LogisticRegression)
-# Features : taux_endettement | log_anciennete | nb_incidents | log_capacite_nette | ratio_montant_revenu
 COEF       = np.array([-0.6608, -0.3763, 0.8385, -1.3757, 0.1453])
 INTERCEPT  = -2.926
 MEAN       = np.array([0.626798, 1.644405, 0.4122, 1.223135, 0.45271])
@@ -39,26 +37,24 @@ with col1:
 with col2:
     anciennete   = st.slider("Anciennete client (mois)", 1, 120, 24)
     duree        = st.selectbox("Duree du credit (mois)", [6, 12, 18, 24, 36, 48, 60])
-    nb_incidents = st.selectbox("Incidents de paiement passes", [0, 1, 2, 3, 4, 5],
-                                 help="Retards ou defauts sur des credits precedents")
+    nb_incidents = st.selectbox("Incidents de paiement passes", [0, 1, 2, 3, 4, 5])
 
 # Calcul
-prob, dti, cap_nette = predict_proba(montant, revenu, anciennete, duree, charges, nb_incidents)
+prob_raw, dti, cap_nette = predict_proba(montant, revenu, anciennete, duree, charges, nb_incidents)
 
-# Capacite nette negative = remboursement impossible, on force le rejet
-if cap_nette < 0:
-    prob = 1.0
-
+# Si capacite nette negative : impossible mathematiquement, on force le rejet
+prob     = 1.0 if cap_nette < 0 else prob_raw
 solvable = prob < 0.20
 
 st.divider()
 
-# Metriques + Verdict
+# Metriques
 m1, m2, m3 = st.columns(3)
 m1.metric("Probabilite de defaut", f"{prob:.1%}")
 m2.metric("Taux d'endettement (DTI)", f"{dti:.1%}", help="(Mensualite + charges) / revenu. Critique > 40%")
 m3.metric("Capacite nette mensuelle", f"{cap_nette:,.0f} CFA")
 
+# Verdict
 if cap_nette < 0:
     st.error("Dossier REJETE — La mensualite depasse le revenu disponible apres charges.")
 elif solvable:
@@ -70,18 +66,32 @@ else:
 
 st.divider()
 
-# Graphique
+# Graphique — on calcule le revenu minimum viable (cap_nette >= 0)
+mensualite_client = montant / duree
+revenu_min_viable = charges + mensualite_client  # en dessous = impossible
+
 revenus = np.linspace(150_000, 3_000_000, 300)
 risques = []
 for r in revenus:
-    p, _, cn = predict_proba(montant, r, anciennete, duree, charges, nb_incidents)
-    risques.append(1.0 if cn < 0 else p)
+    if r <= revenu_min_viable:
+        risques.append(1.0)   # zone impossible : on plafonne a 1
+    else:
+        p, _, _ = predict_proba(montant, r, anciennete, duree, charges, nb_incidents)
+        risques.append(p)
 
 fig = go.Figure()
 
 fig.add_hrect(y0=0,    y1=0.20, fillcolor="rgba(63,185,80,0.07)",  line_width=0)
 fig.add_hrect(y0=0.20, y1=0.40, fillcolor="rgba(210,153,34,0.07)", line_width=0)
 fig.add_hrect(y0=0.40, y1=1.0,  fillcolor="rgba(248,81,73,0.07)",  line_width=0)
+
+# Zone impossible (revenu trop faible)
+fig.add_vrect(
+    x0=150_000, x1=revenu_min_viable,
+    fillcolor="rgba(248,81,73,0.06)", line_width=0,
+    annotation_text="Revenu insuffisant", annotation_position="top left",
+    annotation_font=dict(color="#f85149", size=10)
+)
 
 fig.add_trace(go.Scatter(
     x=revenus, y=risques,
@@ -113,9 +123,9 @@ fig.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02),
     margin=dict(t=60, b=40), height=380,
     annotations=[
-        dict(x=250_000, y=0.10, text="Eligible", showarrow=False, font=dict(color="#3fb950", size=11)),
-        dict(x=250_000, y=0.30, text="Modere",   showarrow=False, font=dict(color="#d29922", size=11)),
-        dict(x=250_000, y=0.65, text="Rejete",   showarrow=False, font=dict(color="#f85149", size=11)),
+        dict(x=1_800_000, y=0.10, text="Eligible", showarrow=False, font=dict(color="#3fb950", size=11)),
+        dict(x=1_800_000, y=0.30, text="Modere",   showarrow=False, font=dict(color="#d29922", size=11)),
+        dict(x=1_800_000, y=0.65, text="Rejete",   showarrow=False, font=dict(color="#f85149", size=11)),
     ]
 )
 
