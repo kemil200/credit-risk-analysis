@@ -1,137 +1,125 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
+import os
 
 st.set_page_config(page_title="ScoreCredit", layout="centered")
 st.title("ScoreCredit")
-st.caption("Modele d'analyse de risque de credit")
+st.caption("Analyse risque et crédit")
 st.divider()
 
-COEF       = np.array([-0.6608, -0.3763, 0.8385, -1.3757, 0.1453])
-INTERCEPT  = -2.926
-MEAN       = np.array([0.626798, 1.644405, 0.4122, 1.223135, 0.45271])
-SCALE      = np.array([0.536309, 0.603517, 0.63142, 0.70906, 0.476419])
+# ── Modele entraine sur Jeux_donnees.csv ──────────────────────────────────────
+# Features : log_montant | Duree | taux | age | sexe_bin | act_Artisanat | act_Commerce
+# Cible    : EN RETARD = 1, REMBOURSE / EN COURS = 0
+COEF      = np.array([0.1775, -0.0344, 0.1449, 0.2033, 0.0041, 0.2477, -0.0191])
+INTERCEPT = -0.0249
+MEAN      = np.array([12.289189, 19.608, 0.112, 44.198, 0.532, 0.35, 0.346])
+SCALE     = np.array([1.012749, 10.39261, 0.025706, 14.442673, 0.498975, 0.47697, 0.475693])
 
-def predict_proba(montant, revenu, anciennete, duree, charges, nb_incidents):
-    mensualite           = montant / duree
-    taux_endettement     = (mensualite + charges) / revenu
-    log_anciennete       = np.log1p(anciennete / 12)
-    capacite_nette       = revenu - charges - mensualite
-    log_capacite_nette   = np.log1p(max(capacite_nette, 0) / 100_000)
-    ratio_montant_revenu = montant / (revenu * 12)
+def mensualite_reelle(montant, duree, taux_annuel):
+    r = taux_annuel / 12
+    if r < 1e-9:
+        return montant / duree
+    return montant * (r * (1 + r) ** duree) / ((1 + r) ** duree - 1)
 
-    x        = np.array([taux_endettement, log_anciennete, nb_incidents,
-                          log_capacite_nette, ratio_montant_revenu])
+def predict(montant, duree, taux_annuel, age, sexe, activite):
+    sexe_bin      = 1 if sexe == "Homme" else 0
+    act_artisanat = 1 if activite == "Artisanat" else 0
+    act_commerce  = 1 if activite == "Commerce" else 0
+
+    x        = np.array([np.log(montant), duree, taux_annuel, age,
+                          sexe_bin, act_artisanat, act_commerce])
     x_scaled = (x - MEAN) / SCALE
     logit    = INTERCEPT + np.dot(COEF, x_scaled)
     prob     = 1 / (1 + np.exp(-logit))
-    return float(prob), float(taux_endettement), float(capacite_nette)
+    return float(prob)
 
-# Saisie
+# ── Saisie ────────────────────────────────────────────────────────────────────
 col1, col2 = st.columns(2)
 with col1:
-    montant      = st.number_input("Montant demande (CFA)", 200_000, 10_000_000, 2_000_000, 100_000)
-    revenu       = st.number_input("Revenu mensuel net (CFA)", 150_000, 5_000_000, 500_000, 50_000)
-    charges      = st.number_input("Charges fixes mensuelles (CFA)", 0, 3_000_000, 100_000, 10_000,
-                                    help="Loyer, autres credits en cours, etc.")
+    montant   = st.number_input("Montant demande (CFA)", 50_000, 10_000_000, 300_000, 25_000)
+    taux_pct  = st.slider("Taux d'interet annuel (%)", 5.0, 20.0, 12.0, 0.5)
+    age       = st.slider("Age du client", 18, 80, 40)
 with col2:
-    anciennete   = st.slider("Anciennete client (mois)", 1, 120, 24)
-    duree        = st.selectbox("Duree du credit (mois)", [6, 12, 18, 24, 36, 48, 60])
-    nb_incidents = st.selectbox("Incidents de paiement passes", [0, 1, 2, 3, 4, 5])
+    duree     = st.selectbox("Duree du credit (mois)", [6, 12, 18, 24, 36])
+    activite  = st.selectbox("Activite", ["Commerce", "Artisanat", "Agriculture"])
+    sexe      = st.selectbox("Sexe", ["Homme", "Femme"])
 
-# Calcul
-prob_raw, dti, cap_nette = predict_proba(montant, revenu, anciennete, duree, charges, nb_incidents)
+taux_annuel = taux_pct / 100
+mens        = mensualite_reelle(montant, duree, taux_annuel)
 
-# Si capacite nette negative : impossible mathematiquement, on force le rejet
-prob     = 1.0 if cap_nette < 0 else prob_raw
-solvable = prob < 0.20
+# ── Calcul ────────────────────────────────────────────────────────────────────
+prob     = predict(montant, duree, taux_annuel, age, sexe, activite)
+solvable = prob < 0.33   # seuil cale sur le taux de defaut observe (33%)
 
 st.divider()
 
-# Metriques
+# ── Metriques ─────────────────────────────────────────────────────────────────
 m1, m2, m3 = st.columns(3)
 m1.metric("Probabilite de defaut", f"{prob:.1%}")
-m2.metric("Taux d'endettement (DTI)", f"{dti:.1%}", help="(Mensualite + charges) / revenu. Critique > 40%")
-m3.metric("Capacite nette mensuelle", f"{cap_nette:,.0f} CFA")
+m2.metric("Mensualite estimee", f"{mens:,.0f} CFA",
+          help="Amortissement constant avec le taux d'interet saisi")
+m3.metric("Cout total du credit", f"{mens * duree:,.0f} CFA")
 
-# Verdict
-if cap_nette < 0:
-    st.error("Dossier REJETE — La mensualite depasse le revenu disponible apres charges.")
-elif solvable:
+# ── Verdict ───────────────────────────────────────────────────────────────────
+if solvable:
     st.success(f"Dossier ELIGIBLE — Risque de defaut faible ({prob:.1%})")
-elif prob < 0.40:
+elif prob < 0.55:
     st.warning(f"Dossier a surveiller — Risque modere ({prob:.1%}), analyse complementaire recommandee.")
 else:
     st.error(f"Dossier REJETE — Risque de defaut eleve ({prob:.1%})")
 
 st.divider()
 
-# Graphique — on calcule le revenu minimum viable (cap_nette >= 0)
-mensualite_client = montant / duree
-revenu_min_viable = charges + mensualite_client  # en dessous = impossible
-
-revenus = np.linspace(150_000, 3_000_000, 300)
-risques = []
-for r in revenus:
-    if r <= revenu_min_viable:
-        risques.append(1.0)   # zone impossible : on plafonne a 1
-    else:
-        p, _, _ = predict_proba(montant, r, anciennete, duree, charges, nb_incidents)
-        risques.append(p)
+# ── Graphique : P(defaut) vs Montant ─────────────────────────────────────────
+montants = np.linspace(50_000, 2_000_000, 300)
+risques  = [predict(m, duree, taux_annuel, age, sexe, activite) for m in montants]
 
 fig = go.Figure()
 
-fig.add_hrect(y0=0,    y1=0.20, fillcolor="rgba(63,185,80,0.07)",  line_width=0)
-fig.add_hrect(y0=0.20, y1=0.40, fillcolor="rgba(210,153,34,0.07)", line_width=0)
-fig.add_hrect(y0=0.40, y1=1.0,  fillcolor="rgba(248,81,73,0.07)",  line_width=0)
-
-# Zone impossible (revenu trop faible)
-fig.add_vrect(
-    x0=150_000, x1=revenu_min_viable,
-    fillcolor="rgba(248,81,73,0.06)", line_width=0,
-    annotation_text="Revenu insuffisant", annotation_position="top left",
-    annotation_font=dict(color="#f85149", size=10)
-)
+fig.add_hrect(y0=0,    y1=0.33, fillcolor="rgba(63,185,80,0.07)",  line_width=0)
+fig.add_hrect(y0=0.33, y1=0.55, fillcolor="rgba(210,153,34,0.07)", line_width=0)
+fig.add_hrect(y0=0.55, y1=1.0,  fillcolor="rgba(248,81,73,0.07)",  line_width=0)
 
 fig.add_trace(go.Scatter(
-    x=revenus, y=risques,
+    x=montants, y=risques,
     mode="lines", line=dict(color="#58a6ff", width=2.5),
     fill="tozeroy", fillcolor="rgba(88,166,255,0.08)",
     name="P(Defaut)"
 ))
 
-fig.add_hline(y=0.20, line_dash="dot", line_color="#3fb950",
-              annotation_text="Seuil eligible (20%)", annotation_font_color="#3fb950",
+fig.add_hline(y=0.33, line_dash="dot", line_color="#3fb950",
+              annotation_text="Seuil eligible (33%)", annotation_font_color="#3fb950",
               annotation_position="top right")
-fig.add_hline(y=0.40, line_dash="dot", line_color="#d29922",
-              annotation_text="Seuil rejet (40%)", annotation_font_color="#d29922",
+fig.add_hline(y=0.55, line_dash="dot", line_color="#d29922",
+              annotation_text="Seuil rejet (55%)", annotation_font_color="#d29922",
               annotation_position="top right")
 
-point_color = "#3fb950" if solvable else ("#d29922" if prob < 0.40 else "#f85149")
+point_color = "#3fb950" if solvable else ("#d29922" if prob < 0.55 else "#f85149")
 fig.add_trace(go.Scatter(
-    x=[revenu], y=[prob],
+    x=[montant], y=[prob],
     mode="markers",
     marker=dict(color=point_color, size=14, symbol="circle",
                 line=dict(color="white", width=2)),
-    name="Client actuel"
+    name="Dossier actuel"
 ))
 
 fig.update_layout(
-    title="Probabilite de defaut selon le revenu mensuel",
-    xaxis_title="Revenu mensuel (CFA)",
+    title=f"Probabilite de defaut selon le montant  (taux {taux_pct:.1f}% · {duree} mois · {activite})",
+    xaxis_title="Montant demande (CFA)",
     yaxis=dict(title="P(Defaut)", tickformat=".0%", range=[0, 1]),
     legend=dict(orientation="h", yanchor="bottom", y=1.02),
     margin=dict(t=60, b=40), height=380,
     annotations=[
-        dict(x=1_800_000, y=0.10, text="Eligible", showarrow=False, font=dict(color="#3fb950", size=11)),
-        dict(x=1_800_000, y=0.30, text="Modere",   showarrow=False, font=dict(color="#d29922", size=11)),
-        dict(x=1_800_000, y=0.65, text="Rejete",   showarrow=False, font=dict(color="#f85149", size=11)),
+        dict(x=1_700_000, y=0.16,  text="Eligible", showarrow=False, font=dict(color="#3fb950", size=11)),
+        dict(x=1_700_000, y=0.44,  text="Modere",   showarrow=False, font=dict(color="#d29922", size=11)),
+        dict(x=1_700_000, y=0.75,  text="Rejete",   showarrow=False, font=dict(color="#f85149", size=11)),
     ]
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
 st.caption(
-    "Modele : Regression Logistique (sklearn) · Dataset : 5 000 dossiers synthetiques · "
-    "Variables : DTI, anciennete, incidents de paiement, capacite nette, ratio montant/revenu"
+    "Modele : Regression Logistique · Entraine sur Jeux_donnees.csv (500 dossiers) · "
+    "Variables : montant, duree, taux, age, sexe, activite"
 )
