@@ -5,7 +5,7 @@ from scipy.special import softmax
 
 st.set_page_config(page_title="ScoreCredit", layout="centered")
 st.title("ScoreCredit")
-st.caption("Regression logistique multinomiale · 3 classes · Entraine sur 500 dossiers reels")
+st.caption("Analyse risque et credit")
 st.divider()
 
 # ── Modele multinomial entraine sur Jeux_donnees.csv ─────────────────────────
