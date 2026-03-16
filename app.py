@@ -114,4 +114,4 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-st.caption("Modèle : Régression Logistique Multinomiale · Fairness-Aware (sans âge ni sexe) · 500 dossiers réels · Accuracy : 43%")
+
