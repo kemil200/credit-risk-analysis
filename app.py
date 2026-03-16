@@ -6,7 +6,7 @@ from scipy.special import softmax
 st.set_page_config(page_title="ScoreCredit", layout="centered")
 
 st.title("ScoreCredit")
-st.caption("Analyse de risque crédit · Modèle fairness-aware · Sans âge ni sexe")
+st.caption("Analyse de risque crédit")
 st.divider()
 
 # Modele multinomial fairness-aware
